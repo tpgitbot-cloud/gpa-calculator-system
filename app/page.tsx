@@ -2,9 +2,11 @@
 
 import React, { useState } from "react";
 import Upload from "@/components/Upload";
+import ScreenshotUpload from "@/components/ScreenshotUpload";
 import CreditsForm from "@/components/CreditsForm";
 import ResultsTable from "@/components/ResultsTable";
 import LoadingSpinner from "@/components/LoadingSpinner";
+
 
 interface StudentData {
   name: string;
@@ -22,15 +24,20 @@ interface TopStudent {
 }
 
 type AppState = "upload" | "credits" | "results";
+type UploadMode = "excel" | "screenshot";
+
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>("upload");
+  const [uploadMode, setUploadMode] = useState<UploadMode>("excel");
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessingScreenshot, setIsProcessingScreenshot] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [students, setStudents] = useState<StudentData[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [topStudents, setTopStudents] = useState<TopStudent[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
+
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
@@ -63,6 +70,26 @@ export default function Home() {
       setIsLoading(false);
     }
   };
+
+  // Handle OCR result from screenshot
+  const handleOCRResult = (result: {
+    grades: { [subject: string]: string };
+    studentName?: string;
+    registerNumber?: string;
+  }) => {
+    const student: StudentData = {
+      name: result.studentName || "Extracted Student",
+      registerNumber: result.registerNumber || "N/A",
+      grades: result.grades,
+      gpa: 0,
+      hasFail: Object.values(result.grades).includes("U"),
+    };
+
+    setStudents([student]);
+    setSubjects(Object.keys(result.grades));
+    setAppState("credits");
+  };
+
 
   // Handle credits submission
   const handleCreditsSubmit = async (
@@ -243,8 +270,52 @@ export default function Home() {
         {/* Content */}
         <div className="space-y-6">
           {appState === "upload" && (
-            <Upload onFileUpload={handleFileUpload} isLoading={isLoading} />
+            <div className="space-y-6">
+              {/* Tab Selector */}
+              <div className="flex justify-center mb-8">
+                <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 flex pointer-events-auto">
+                  <button
+                    onClick={() => setUploadMode("excel")}
+                    className={`px-6 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
+                      uploadMode === "excel"
+                        ? "bg-blue-600 text-white shadow-md"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Excel File Upload
+                  </button>
+                  <button
+                    onClick={() => setUploadMode("screenshot")}
+                    className={`px-6 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
+                      uploadMode === "screenshot"
+                        ? "bg-purple-600 text-white shadow-md"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Instant Screenshot
+                  </button>
+                </div>
+              </div>
+
+              {uploadMode === "excel" ? (
+                <Upload onFileUpload={handleFileUpload} isLoading={isLoading} />
+              ) : (
+                <ScreenshotUpload 
+                  onResultParsed={handleOCRResult} 
+                  isProcessing={isProcessingScreenshot}
+                  setIsProcessing={setIsProcessingScreenshot}
+                />
+              )}
+            </div>
           )}
+
 
           {appState === "credits" && (
             <>
